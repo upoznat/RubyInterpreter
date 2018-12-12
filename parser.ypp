@@ -1,0 +1,85 @@
+%{
+#include <iostream>
+#include <string>
+#include <cstdlib>
+#include <map>
+#include <vector>
+
+#include "izraz.hpp"
+#include "naredba.hpp"
+
+#define YYDEBUG 1
+
+  using namespace std;
+
+void yyerror(string s) {
+     cerr<<s<<endl;
+     exit(EXIT_FAILURE);
+}
+
+extern int yylex();
+
+map<string, int> tablica;
+
+
+  %}
+
+%union {
+       string *s;
+       Izraz *i;
+       Naredba *n;
+       int v;
+       vector<Naredba*> *niz;
+}
+
+
+%token <v> num_token
+%token <s> id_token
+%token puts_token dodela_token begin_token end_token
+%token if_token else_token
+%token while_token until_token stepen_token
+
+%type <n> Blok Naredba 
+%type <i> E
+%type <niz> NizNaredbi
+
+%left '<' '>'
+%left '+' '-'
+%left '*' '/'
+%left stepen_token
+
+%%
+Program : Blok 					        { $1->Izvrsi(); delete $1; }
+;
+Blok: begin_token '\n' NizNaredbi '\n' end_token	{ $$ = new BlokNaredba($3); }
+;
+NizNaredbi: NizNaredbi '\n' Naredba			{ $$ = $1; $$->push_back($3); }
+| Naredba						{ $$ = new vector<Naredba*>(); $$->push_back($1); }
+;
+Naredba: id_token dodela_token E			{ $$ = new NaredbaDodele(*$1, $3); delete $1; }
+| puts_token  E 				{ $$ = new NaredbaIspisa($2); }
+| if_token E '\n' Naredba '\n' else_token '\n' Naredba '\n' end_token	{ $$ = new IfElseNaredba($2, $4, $8); }
+| begin_token '\n' Naredba '\n' end_token while_token E  { $$ = new WhileNaredba($7, $3); }
+| begin_token '\n' NizNaredbi '\n' end_token until_token E { $$ = new RepeatUntilNaredba($3, $7); }
+| Blok	       		  	      			   { $$ = $1; }
+| '\n'							{ $$ = new PraznaNaredba(); }
+;
+E: E '+' E						   { $$ = new Plus($1, $3);  }
+| E '-' E						{ $$ = new Minus($1, $3); }
+| E '*' E						{ $$ = new Zvezda($1, $3); }
+| E '/' E						{ $$ = new Podeljeno($1, $3); }
+| E '<' E						{ $$ = new Manje($1, $3); }
+| E '>' E						{ $$ = new Vece($1,$3);   }
+| E stepen_token E					    { $$ = new Stepen($1,$3); }
+| num_token						{ $$ = new Konstanta($1); }
+| id_token						 { $$ = new Promenljiva(*$1); delete($1); }
+;
+
+
+%%
+
+int main() {
+    //  yydebug = 1;
+  yyparse();
+  return 0;
+}
